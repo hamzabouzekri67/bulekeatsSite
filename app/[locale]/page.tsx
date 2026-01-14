@@ -23,12 +23,15 @@ export default async function HomePage({
             <p className="text-xl md:text-2xl mb-8 text-red-100 max-w-3xl mx-auto">
               {dict.home.hero.subtitle}
             </p>
+           <a href="https://onelink.to/tmtsw5" target="_blank" rel="noopener noreferrer">
             <Button
               size="lg"
               className="bg-white text-brand-red hover:bg-red-50 transition-all duration-300 transform hover:scale-105 shadow-lg"
             >
               {dict.home.hero.cta}
             </Button>
+            </a>
+
           </div>
         </div>
       </section>
