@@ -101,7 +101,6 @@ export default function PartnerPage() {
     }
   };
 
-  // معالج اختيار ملف السجل التجاري
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setRegistreCommerce(e.target.files[0]);
@@ -125,11 +124,12 @@ export default function PartnerPage() {
       return;
     }
 
-    const selectedCountry =
-      Country.getCountryByCode(formData.countryCode)?.name || "";
-    const selectedState =
-      State.getStateByCodeAndCountry(formData.stateCode, formData.countryCode)
-        ?.name || "";
+    const currentCountryObj = dbCountries.find(
+      (c) => c.country_code === formData.countryCode,
+    );
+    const selectedCountry = currentCountryObj ? currentCountryObj.country : "";
+
+    const selectedState = formData.stateCode;
 
     // إعداد الـ FormData لإرسال النصوص والملفات معاً
     const dataToSend = new FormData();
