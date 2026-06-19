@@ -439,7 +439,7 @@ export default function PartnerPage() {
           style={{
             width: "100%",
             padding: "12px",
-            backgroundColor: "#0070f3",
+            backgroundColor: "#F30000",
             color: "white",
             border: "none",
             borderRadius: "6px",
