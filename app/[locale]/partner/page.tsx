@@ -46,14 +46,20 @@ export default function PartnerPage() {
   const [restaurantTypes, setRestaurantTypes] = useState<RestaurantTypeData[]>(
     [],
   );
+
+  const [dbCountries, setDbCountries] = useState<any[]>([]);
+  const [availableRegions, setAvailableRegions] = useState<any[]>([]);
   const [loadingTypes, setLoadingTypes] = useState<boolean>(true);
 
   useEffect(() => {
     const fetchRestaurantTypes = async () => {
       try {
         const response = await fetchTagsList();
+        console.log(response);
+
         if (response && response.status === true) {
-          setRestaurantTypes(response.result);
+          setRestaurantTypes(response.result.findData);
+          setDbCountries(response.result.country || []);
         }
       } catch (error) {
       } finally {
@@ -64,10 +70,25 @@ export default function PartnerPage() {
     fetchRestaurantTypes();
   }, []);
 
-  const countries = Country.getAllCountries();
-  const states = formData.countryCode
-    ? State.getStatesOfCountry(formData.countryCode)
-    : [];
+  // const countries = Country.getAllCountries();
+  // const states = formData.countryCode
+  //   ? State.getStatesOfCountry(formData.countryCode)
+  //   : [];
+
+  useEffect(() => {
+    if (!formData.countryCode) {
+      setAvailableRegions([]);
+      return;
+    }
+    const selectedCountry = dbCountries.find(
+      (c) => c.country_code === formData.countryCode,
+    );
+    if (selectedCountry && selectedCountry.regions) {
+      setAvailableRegions(selectedCountry.regions);
+    } else {
+      setAvailableRegions([]);
+    }
+  }, [formData.countryCode, dbCountries]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -323,16 +344,16 @@ export default function PartnerPage() {
               marginTop: "5px",
               borderRadius: "6px",
               border: "1px solid #ccc",
-              backgroundColor: "#ffffff",
-              color: "#000000",
+              backgroundColor: "#fff",
+              color: "#000",
             }}
           >
             <option value="">
-              {locale === "fr" ? "Sélectionner le pays..." : "اختر الدولة..."}
+              {locale === "fr" ? "Sélectionner..." : "اختر الدولة..."}
             </option>
-            {countries.map((country) => (
-              <option key={country.isoCode} value={country.isoCode}>
-                {country.flag} {country.name}
+            {dbCountries.map((c) => (
+              <option key={c.country_code} value={c.country_code}>
+                {c.flag} {locale === "ar" ? c.ar_name : c.country}
               </option>
             ))}
           </select>
@@ -341,7 +362,7 @@ export default function PartnerPage() {
         {/* حقل الولايات */}
         <div style={{ marginBottom: "15px" }}>
           <label style={{ fontWeight: "500" }}>
-            {locale === "fr" ? "Wilaya / État" : "الولاية"}:
+            {locale === "fr" ? "Wilaya / Ville" : "الولاية / المدينة"}:
           </label>
           <select
             name="stateCode"
@@ -355,16 +376,17 @@ export default function PartnerPage() {
               marginTop: "5px",
               borderRadius: "6px",
               border: "1px solid #ccc",
-              backgroundColor: formData.countryCode ? "#ffffff" : "#f3f4f6",
-              color: "#000000",
+              backgroundColor: "#fff",
+              color: "#000",
             }}
           >
             <option value="">
-              {locale === "fr" ? "Sélectionner..." : "اختر الولاية..."}
+              {locale === "fr" ? "Sélectionner..." : "اختر المدينة..."}
             </option>
-            {states.map((state) => (
-              <option key={state.isoCode} value={state.isoCode}>
-                {state.name}
+            {availableRegions.map((region, index) => (
+              <option key={index} value={region.ville}>
+                {region.ville}{" "}
+                {/* ستظهر الأسعار بالفرنسية النظيفة مباشرة: Alger, Blida, Khenchela */}
               </option>
             ))}
           </select>
