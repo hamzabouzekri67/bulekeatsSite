@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useState } from 'react';
-import { Menu, X, Utensils } from 'lucide-react';
-import { LanguageSwitcher } from './language-switcher';
-import { Locale } from '@/lib/i18n/config';
+import Link from "next/link";
+import { useState } from "react";
+import { Menu, X, Utensils } from "lucide-react";
+import { LanguageSwitcher } from "./language-switcher";
+import { Locale } from "@/lib/i18n/config";
 
 interface HeaderProps {
   locale: Locale;
@@ -17,6 +17,7 @@ export function Header({ locale, dict }: HeaderProps) {
   const navigation = [
     { name: dict.nav.home, href: `/${locale}` },
     { name: dict.nav.about, href: `/${locale}/about` },
+    { name: dict.nav.partner, href: `/${locale}/partner` },
     { name: dict.nav.contact, href: `/${locale}/contact` },
     { name: dict.nav.privacy, href: `/${locale}/privacy` },
     { name: dict.nav.terms, href: `/${locale}/terms` },
