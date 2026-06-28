@@ -1,7 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Country, State } from "country-state-city";
 import { fetchTagsList, registerStore } from "./api/handler_signup";
 
 interface RestaurantFormData {
@@ -12,6 +11,7 @@ interface RestaurantFormData {
   countryCode: string;
   stateCode: string;
   cityDistrict: string;
+  phoneNumbers: string[];
 }
 
 interface RestaurantTypeData {
@@ -30,12 +30,13 @@ export default function PartnerPage() {
     lastName: "",
     restaurantName: "",
     restaurantType: "",
-    countryCode: "",
+    countryCode: "", // هنا سيتم تخزين الرمز المختصر مثل DZ ليفك قفل الهاتف فوراً
     stateCode: "",
     cityDistrict: "",
+    phoneNumbers: [""],
   });
 
-  // حالة لتخزين ملف السجل التجاري المرفوع
+  const [phoneErrors, setPhoneErrors] = useState<boolean[]>([false]);
   const [registreCommerce, setRegistreCommerce] = useState<File | null>(null);
   const [status, setStatus] = useState({
     loading: false,
@@ -46,7 +47,6 @@ export default function PartnerPage() {
   const [restaurantTypes, setRestaurantTypes] = useState<RestaurantTypeData[]>(
     [],
   );
-
   const [dbCountries, setDbCountries] = useState<any[]>([]);
   const [availableRegions, setAvailableRegions] = useState<any[]>([]);
   const [loadingTypes, setLoadingTypes] = useState<boolean>(true);
@@ -55,25 +55,18 @@ export default function PartnerPage() {
     const fetchRestaurantTypes = async () => {
       try {
         const response = await fetchTagsList();
-        console.log(response);
-
         if (response && response.status === true) {
           setRestaurantTypes(response.result.findData);
           setDbCountries(response.result.country || []);
         }
       } catch (error) {
+        console.error(error);
       } finally {
         setLoadingTypes(false);
       }
     };
-
     fetchRestaurantTypes();
   }, []);
-
-  // const countries = Country.getAllCountries();
-  // const states = formData.countryCode
-  //   ? State.getStatesOfCountry(formData.countryCode)
-  //   : [];
 
   useEffect(() => {
     if (!formData.countryCode) {
@@ -94,10 +87,62 @@ export default function PartnerPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value } = e.target;
+    console.log("name");
+
     if (name === "countryCode") {
-      setFormData((prev) => ({ ...prev, countryCode: value, stateCode: "" }));
+      // تحديث فوري لرمز الدولة وتصفير الهاتف لضمان ظهور الخانة وتفعيلها
+      setFormData((prev) => ({
+        ...prev,
+        countryCode: value,
+        stateCode: "",
+        phoneNumbers: [""],
+      }));
+      setPhoneErrors([false]);
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const validatePhoneByCountry = (phone: string, countryCode: string) => {
+    const cleanPhone = phone.trim();
+    if (!cleanPhone) return true;
+
+    if (countryCode === "DZ") {
+      const dzRegex = /^(0[567]\d{8}|02\d{7}|\+213[5672]\d{8})$/;
+      return dzRegex.test(cleanPhone);
+    }
+    const generalRegex = /^\+?[0-9]{9,14}$/;
+    return generalRegex.test(cleanPhone);
+  };
+
+  const handlePhoneChange = (index: number, value: string) => {
+    const cleanValue = value.replace(/[^\d+]/g, "");
+    const updatedPhones = [...formData.phoneNumbers];
+    updatedPhones[index] = cleanValue;
+    setFormData((prev) => ({ ...prev, phoneNumbers: updatedPhones }));
+
+    const isValid = validatePhoneByCountry(cleanValue, formData.countryCode);
+    const updatedErrors = [...phoneErrors];
+    updatedErrors[index] = cleanValue.length > 0 ? !isValid : false;
+    setPhoneErrors(updatedErrors);
+  };
+
+  const addPhoneField = () => {
+    if (formData.phoneNumbers.length < 4) {
+      setFormData((prev) => ({
+        ...prev,
+        phoneNumbers: [...prev.phoneNumbers, ""],
+      }));
+      setPhoneErrors((prev) => [...prev, false]);
+    }
+  };
+
+  const removePhoneField = (index: number) => {
+    if (formData.phoneNumbers.length > 1) {
+      const updatedPhones = formData.phoneNumbers.filter((_, i) => i !== index);
+      const updatedErrors = phoneErrors.filter((_, i) => i !== index);
+      setFormData((prev) => ({ ...prev, phoneNumbers: updatedPhones }));
+      setPhoneErrors(updatedErrors);
     }
   };
 
@@ -111,7 +156,30 @@ export default function PartnerPage() {
     e.preventDefault();
     setStatus({ loading: true, message: "", error: false });
 
-    // التحقق من رفع الوثيقة أولاً
+    if (!formData.countryCode) {
+      setStatus({
+        loading: false,
+        message:
+          locale === "fr"
+            ? "Veuillez d'abord sélectionner un pays."
+            : "يرجى اختيار الدولة أولاً لتأكيد أرقام الهاتف.",
+        error: true,
+      });
+      return;
+    }
+
+    if (phoneErrors.includes(true)) {
+      setStatus({
+        loading: false,
+        message:
+          locale === "fr"
+            ? "Veuillez corriger les numéros de téléphone."
+            : "يرجى تصحيح أرقام الهاتف غير الصحيحة.",
+        error: true,
+      });
+      return;
+    }
+
     if (!registreCommerce) {
       setStatus({
         loading: false,
@@ -124,34 +192,68 @@ export default function PartnerPage() {
       return;
     }
 
+    const validPhones = formData.phoneNumbers.filter(
+      (phone) => phone.trim() !== "",
+    );
+    if (validPhones.length === 0) {
+      setStatus({
+        loading: false,
+        message:
+          locale === "fr"
+            ? "Veuillez entrer au moins un numéro."
+            : "يرجى إدخال رقم هاتف واحد على الأقل.",
+        error: true,
+      });
+      return;
+    }
+
+    // ابحث عن الدولة مرة واحدة فقط
     const currentCountryObj = dbCountries.find(
       (c) => c.country_code === formData.countryCode,
     );
     const selectedCountry = currentCountryObj ? currentCountryObj.country : "";
-
     const selectedState = formData.stateCode;
+    const dialCode = currentCountryObj?.dialling_code || "";
 
-    // إعداد الـ FormData لإرسال النصوص والملفات معاً
+   // console.log(currentCountryObj);
+    
+
+    const formattedPhones = formData.phoneNumbers
+      .filter((phone) => phone.trim() !== "")
+      .map((phone) => {
+        let cleanPhone = phone.trim();
+
+        if (cleanPhone.startsWith("0")) {
+          cleanPhone = cleanPhone.substring(1);
+        }
+
+        if (!cleanPhone.startsWith(dialCode)) {
+          return `${dialCode}${cleanPhone}`.trim().replace("+","");
+        }
+        return cleanPhone;
+      });
+
+      console.log(JSON.stringify(formattedPhones));
+      
+
     const dataToSend = new FormData();
     dataToSend.append("name", formData.firstName);
+    dataToSend.append("phones", JSON.stringify(formattedPhones));
     dataToSend.append("namefamilly", formData.lastName);
     dataToSend.append("nameEtabliss", formData.restaurantName);
     dataToSend.append("typeEtabliss", formData.restaurantType);
     dataToSend.append("pays", selectedCountry);
     dataToSend.append("ville", selectedState);
     dataToSend.append("state", formData.cityDistrict);
-    dataToSend.append("document", registreCommerce); // إرفاق ملف الصورة/الوثيقة
+    dataToSend.append("document", registreCommerce);
 
     try {
       const response = await registerStore(dataToSend);
-
       if (response.status == true) {
         setStatus({
           loading: false,
           message:
-            locale === "fr"
-              ? "Inscription réussie! Documents reçus."
-              : "تم التسجيل بنجاح! تم استلام وثائقكم.",
+            locale === "fr" ? "Inscription réussie!" : "تم التسجيل بنجاح!",
           error: false,
         });
         setFormData({
@@ -162,7 +264,9 @@ export default function PartnerPage() {
           countryCode: "",
           stateCode: "",
           cityDistrict: "",
+          phoneNumbers: [""],
         });
+        setPhoneErrors([false]);
         setRegistreCommerce(null);
         const fileInput = document.getElementById(
           "registre_file",
@@ -181,6 +285,37 @@ export default function PartnerPage() {
     }
   };
 
+  const getPhoneErrorMessage = (countryCode: string, locale: string) => {
+    const isAr = locale === "ar";
+
+    switch (countryCode) {
+      case "DZ":
+        return isAr
+          ? "رقم غير صحيح، يجب أن يتكون من 10 أرقام ويبدأ بـ 05، 06، 07 أو 02"
+          : "Numéro invalide, doit contenir 10 chiffres et commencer par 05, 06, 07 ou 02";
+
+      case "MA":
+        return isAr
+          ? "رقم مغربي غير صحيح، يجب أن يتكون من 10 أرقام ويبدأ بـ 05، 06 أو 07"
+          : "Numéro marocain invalide (Ex: 06XXXXXXXX)";
+
+      case "TN":
+        return isAr
+          ? "رقم تونسي غير صحيح، يجب أن يتكون من 8 أرقام"
+          : "Numéro tunisien invalide (8 chiffres requis)";
+
+      case "FR":
+        return isAr
+          ? "رقم فرنسي غير صحيح، يجب أن يتكون من 10 أرقام ويبدأ بـ 06 أو 07"
+          : "Numéro français invalide (Ex: 06XXXXXXXX)";
+
+      default:
+        return isAr
+          ? "صيغة الرقم غير صحيحة، يرجى إدخال رقم هاتف دولي معتمد"
+          : "Format de numéro invalide pour ce pays";
+    }
+  };
+
   return (
     <div
       style={{
@@ -191,7 +326,6 @@ export default function PartnerPage() {
         fontFamily: "sans-serif",
         border: "1px solid #e5e7eb",
         borderRadius: "12px",
-        boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
         backgroundColor: "#ffffff",
         color: "#000000",
       }}
@@ -199,28 +333,19 @@ export default function PartnerPage() {
       <h2
         style={{
           textAlign: "center",
-          marginBottom: "10px",
+          marginBottom: "30px",
           fontSize: "24px",
           fontWeight: "bold",
         }}
       >
         {locale === "fr" ? "Devenir Partenaire" : "تسجيل شريك جديد"}
       </h2>
-      <p
-        style={{ textAlign: "center", color: "#6b7280", marginBottom: "30px" }}
-      >
-        {locale === "fr"
-          ? "Enregistrez votre restaurant et importez vos documents"
-          : "قم بتسجيل مطعمك وارفع الوثائق الرسمية"}
-      </p>
 
       <form onSubmit={handleSubmit}>
         {/* الاسم واللقب */}
         <div style={{ display: "flex", gap: "15px", marginBottom: "15px" }}>
           <div style={{ flex: 1 }}>
-            <label style={{ fontWeight: "500" }}>
-              {locale === "fr" ? "Prénom" : "الاسم الأول"}:
-            </label>
+            <label>{locale === "fr" ? "Prénom" : "الاسم الأول"}:</label>
             <input
               type="text"
               name="firstName"
@@ -233,15 +358,13 @@ export default function PartnerPage() {
                 marginTop: "5px",
                 borderRadius: "6px",
                 border: "1px solid #ccc",
-                color: "#000000",
-                backgroundColor: "#ffffff",
+                color: "#000",
+                backgroundColor: "#fff",
               }}
             />
           </div>
           <div style={{ flex: 1 }}>
-            <label style={{ fontWeight: "500" }}>
-              {locale === "fr" ? "Nom" : "اللقب"}:
-            </label>
+            <label>{locale === "fr" ? "Nom" : "اللقب"}:</label>
             <input
               type="text"
               name="lastName"
@@ -254,8 +377,8 @@ export default function PartnerPage() {
                 marginTop: "5px",
                 borderRadius: "6px",
                 border: "1px solid #ccc",
-                color: "#000000",
-                backgroundColor: "#ffffff",
+                color: "#000",
+                backgroundColor: "#fff",
               }}
             />
           </div>
@@ -263,7 +386,7 @@ export default function PartnerPage() {
 
         {/* اسم المطعم */}
         <div style={{ marginBottom: "15px" }}>
-          <label style={{ fontWeight: "500" }}>
+          <label>
             {locale === "fr" ? "Nom du Restaurant" : "اسم المطعم / الشركة"}:
           </label>
           <input
@@ -278,17 +401,15 @@ export default function PartnerPage() {
               marginTop: "5px",
               borderRadius: "6px",
               border: "1px solid #ccc",
-              color: "#000000",
-              backgroundColor: "#ffffff",
+              color: "#000",
+              backgroundColor: "#fff",
             }}
           />
         </div>
 
-        {/* نوع النشاط - التعديل الأساسي هنا */}
+        {/* نوع النشاط */}
         <div style={{ marginBottom: "15px" }}>
-          <label style={{ fontWeight: "500" }}>
-            {locale === "fr" ? "Type d'Entreprise" : "نوع الشركة"}:
-          </label>
+          <label>{locale === "fr" ? "Type d'Entreprise" : "نوع الشركة"}:</label>
           <select
             name="restaurantType"
             value={formData.restaurantType}
@@ -301,21 +422,17 @@ export default function PartnerPage() {
               marginTop: "5px",
               borderRadius: "6px",
               border: "1px solid #ccc",
-              backgroundColor: loadingTypes ? "#f3f4f6" : "#ffffff",
-              color: "#000000",
+              color: "#000",
+              backgroundColor: "#fff",
             }}
           >
             <option value="">
               {loadingTypes
-                ? locale === "fr"
-                  ? "Chargement..."
-                  : "جاري التحميل..."
+                ? "..."
                 : locale === "fr"
                   ? "Choisir..."
                   : "اختر النوع..."}
             </option>
-
-            {/* نقوم بعرض الاسم بناءً على اللغة الحالية (ar_name أو name) */}
             {!loadingTypes &&
               restaurantTypes.map((type) => (
                 <option
@@ -328,7 +445,7 @@ export default function PartnerPage() {
           </select>
         </div>
 
-        {/* حقل الدول */}
+        {/* حقل الدول (تأكد من أن الـ value تأخذ c.country_code) */}
         <div style={{ marginBottom: "15px" }}>
           <label style={{ fontWeight: "500" }}>
             {locale === "fr" ? "Pays" : "الدولة"}:
@@ -359,9 +476,104 @@ export default function PartnerPage() {
           </select>
         </div>
 
+        {/* حقل أرقام الهاتف - يفتح فوراً بمجرد اختيار الدولة */}
+        <div style={{ marginBottom: "15px" }}>
+          <label
+            style={{ fontWeight: "500", display: "block", marginBottom: "5px" }}
+          >
+            {locale === "fr" ? "Numéros de téléphone" : "أرقام الهاتف"}:
+          </label>
+
+          {formData.phoneNumbers.map((phone, index) => (
+            <div key={index} style={{ marginBottom: "10px" }}>
+              <div
+                style={{ display: "flex", gap: "10px", alignItems: "center" }}
+              >
+                <input
+                  type="tel"
+                  disabled={!formData.countryCode} // ينفتح الحقل بمجرد أن يحمل countryCode قيمة
+                  placeholder={
+                    !formData.countryCode
+                      ? locale === "fr"
+                        ? "Sélectionnez d'abord le pays"
+                        : "اختر الدولة أولاً لتفعيل الحقل"
+                      : formData.countryCode === "DZ"
+                        ? "Ex: 05XXXXXXXX"
+                        : "Ex: +33XXXXXXXX"
+                  }
+                  value={phone}
+                  onChange={(e) => handlePhoneChange(index, e.target.value)}
+                  required={index === 0}
+                  style={{
+                    flex: 1,
+                    padding: "10px",
+                    borderRadius: "6px",
+                    border: phoneErrors[index]
+                      ? "1px solid #ef4444"
+                      : "1px solid #ccc",
+                    color: "#000000",
+                    backgroundColor: !formData.countryCode
+                      ? "#f3f4f6"
+                      : "#ffffff", // يتغير الخلفية ليدل على التفعيل
+                  }}
+                />
+                {formData.phoneNumbers.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removePhoneField(index)}
+                    style={{
+                      padding: "10px 15px",
+                      backgroundColor: "#ef4444",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              {/* رسالة الخطأ اللحظية الديناميكية تظهر أسفل الحقل مباشرة */}
+              {phoneErrors[index] && (
+                <span
+                  style={{
+                    color: "#ef4444",
+                    fontSize: "12px",
+                    marginTop: "4px",
+                    display: "block",
+                    fontWeight: "500",
+                  }}
+                >
+                  {getPhoneErrorMessage(formData.countryCode, locale)}
+                </span>
+              )}
+            </div>
+          ))}
+
+          {formData.phoneNumbers.length < 4 && formData.countryCode && (
+            <button
+              type="button"
+              onClick={addPhoneField}
+              style={{
+                marginTop: "5px",
+                padding: "6px 12px",
+                backgroundColor: "#10b981",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "14px",
+              }}
+            >
+              {locale === "fr" ? "+ Ajouter" : "+ إضافة رقم آخر"}
+            </button>
+          )}
+        </div>
+
         {/* حقل الولايات */}
         <div style={{ marginBottom: "15px" }}>
-          <label style={{ fontWeight: "500" }}>
+          <label>
             {locale === "fr" ? "Wilaya / Ville" : "الولاية / المدينة"}:
           </label>
           <select
@@ -385,8 +597,7 @@ export default function PartnerPage() {
             </option>
             {availableRegions.map((region, index) => (
               <option key={index} value={region.ville}>
-                {region.ville}{" "}
-                {/* ستظهر الأسعار بالفرنسية النظيفة مباشرة: Alger, Blida, Khenchela */}
+                {region.ville}
               </option>
             ))}
           </select>
@@ -394,7 +605,7 @@ export default function PartnerPage() {
 
         {/* العنوان والحي */}
         <div style={{ marginBottom: "20px" }}>
-          <label style={{ fontWeight: "500" }}>
+          <label>
             {locale === "fr" ? "Quartier / Adresse" : "الحي / العنوان"}:
           </label>
           <input
@@ -409,13 +620,13 @@ export default function PartnerPage() {
               marginTop: "5px",
               borderRadius: "6px",
               border: "1px solid #ccc",
-              color: "#000000",
-              backgroundColor: "#ffffff",
+              color: "#000",
+              backgroundColor: "#fff",
             }}
           />
         </div>
 
-        {/* حقل رفع السجل التجاري */}
+        {/* السجل التجاري */}
         <div
           style={{
             marginBottom: "30px",
@@ -433,10 +644,7 @@ export default function PartnerPage() {
               color: "#1e40af",
             }}
           >
-            {locale === "fr"
-              ? "Registre du Commerce (Image / PDF)"
-              : "وثيقة السجل التجاري (صورة / PDF)"}
-            :
+            {locale === "fr" ? "Registre du Commerce" : "وثيقة السجل التجاري"}:
           </label>
           <input
             type="file"
@@ -444,15 +652,8 @@ export default function PartnerPage() {
             accept="image/*,.pdf"
             onChange={handleFileChange}
             required
-            style={{ width: "100%", color: "#000000" }}
+            style={{ width: "100%", color: "#000" }}
           />
-          <small
-            style={{ display: "block", marginTop: "5px", color: "#1e3a8a" }}
-          >
-            {locale === "fr"
-              ? "Formats acceptés: JPG, PNG, PDF (Max 5MB)"
-              : "الصيغ المدعومة: JPG، PNG، PDF (الحد الأقصى 5 ميجابايت)"}
-          </small>
         </div>
 
         <button
@@ -474,7 +675,7 @@ export default function PartnerPage() {
             ? "..."
             : locale === "fr"
               ? "S'inscrire"
-              : "إرسال الطلب مع الوثائق"}
+              : "إرسال الطلب"}
         </button>
       </form>
 
@@ -487,7 +688,6 @@ export default function PartnerPage() {
             textAlign: "center",
             backgroundColor: status.error ? "#fef2f2" : "#f0fdf4",
             color: status.error ? "#991b1b" : "#166534",
-            fontWeight: "500",
           }}
         >
           {status.message}
