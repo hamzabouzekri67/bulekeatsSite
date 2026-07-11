@@ -233,7 +233,7 @@ export default function PartnerPage() {
         return cleanPhone;
       });
 
-      console.log(JSON.stringify(formattedPhones));
+    //  console.log(JSON.stringify(formattedPhones));
       
 
     const dataToSend = new FormData();
@@ -249,7 +249,7 @@ export default function PartnerPage() {
 
     try {
       const response = await registerStore(dataToSend);
-      if (response.status == true) {
+      if (response?.success == true) {
         setStatus({
           loading: false,
           message:
@@ -273,10 +273,10 @@ export default function PartnerPage() {
         ) as HTMLInputElement;
         if (fileInput) fileInput.value = "";
       } else {
-        const errorData = await response.json();
+        //const errorData = await response.json();
         setStatus({
           loading: false,
-          message: errorData.message || "Error",
+          message: response!.message || "Error",
           error: true,
         });
       }

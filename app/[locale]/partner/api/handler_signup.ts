@@ -31,22 +31,30 @@ export async function fetchTagsList() {
 export async function registerStore(formData: FormData) {
   try {
     const url = `${API_URL}${REGEISTER_STORE}`;
-
     console.log(url);
 
     const res = await fetch(url, {
       method: "POST",
-      headers: {},
-      credentials: "include",
+      headers: {}, // لا تضع Content-Type: multipart/form-data هنا، المتصفح يضيفها تلقائياً مع الحدود
       body: formData,
     });
-    if (res.ok) {
-      const data = await res.json();
-      //console.log(data);
 
-      return data;
+    // تحويل الاستجابة إلى JSON في كل الأحوال
+    const data = await res.json();
+    console.log("Response data:", data);
+
+    if (data.status === false) {
+      alert(data.message || "حدث خطأ ما");
+      return { success: false, message: data.message };
+    }
+
+    if (res.ok) {
+      console.log("Success:", data);
+      return { success: true, data: data };
+    } else {
+      console.error("Server Error:", data);
     }
   } catch (error) {
-    console.log(error);
+    console.error("Network or parsing error:", error);
   }
 }
